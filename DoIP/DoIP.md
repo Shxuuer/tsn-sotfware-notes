@@ -178,13 +178,19 @@ tester 到 ecu 的报文没有 payload，只是测试目标的协议支持情况
 ## TCP 层如何处理 DoIP 报文的顺序
 
 1. 三次握手（TCP 连接建立）。Tester（客户端）主动连接 DoIP 网关的 TCP 端口（通常是 13400）；网关作为 TCP 服务端，接受连接；三次握手完成后，建立一条 TCP 连接通道。
-2. 发送 Routing Activation 报文。Tester 向 DoIP 网关发送 Routing Activation Request（Payload Type: 0x0005）；网关收到后会验证逻辑地址、权限、安全状态等；若成功，回复 Routing Activation Response（0x0006）；一旦激活成功，才能开始正式的诊断通信（如发送 UDS 报文）。
-3. 发送诊断报文（UDS over DoIP）。一旦路由激活完成，就可以开始发送 UDS 报文，例如：
+2. 大多数场景会发送 Entity Status Request（0x4005）获取当前电源状态、电压、可诊断状态等，判断当前 Power Mode 比如 0x01 → 不可诊断，0x03 → 继续
+3. 发送 Routing Activation 报文。Tester 向 DoIP 网关发送 Routing Activation Request（Payload Type: 0x0005）；网关收到后会验证逻辑地址、权限、安全状态等；若成功，回复 Routing Activation Response（0x0006）；一旦激活成功，才能开始正式的诊断通信（如发送 UDS 报文）。
+4. 发送诊断报文（UDS over DoIP）。一旦路由激活完成，就可以开始发送 UDS 报文，例如：
    Read DTC（读故障码）
    Clear DTC（清故障码）
    Routine Control（执行诊断例程）
    UDS 报文被封装在 DoIP 的 Diagnostic Message 中（Payload Type: 0x8001）
-4. 发送 Alive Check 请求。若诊断过程时间较长或一段时间无数据传输，Tester 会主动发送：Alive Check Request（0x4003），等待 Alive Check Response（0x4004）。目的是保持 TCP 会话、维持路由激活状态、防止网关超时释放资源。
-5. 四次挥手（TCP 连接关闭）。当诊断完成或 Tester 主动断开连接时：执行 TCP 的四次挥手过程；网关清理会话状态，释放资源，撤销路由激活。
+5. 发送 Alive Check 请求。若诊断过程时间较长或一段时间无数据传输，Tester 会主动发送：Alive Check Request（0x4003），等待 Alive Check Response（0x4004）。目的是保持 TCP 会话、维持路由激活状态、防止网关超时释放资源。
+6. 四次挥手（TCP 连接关闭）。当诊断完成或 Tester 主动断开连接时：执行 TCP 的四次挥手过程；网关清理会话状态，释放资源，撤销路由激活。
+
+## DoIP 激活线
+
+车辆点火或唤醒时，激活线为 ECU 供电，保证网络设备和诊断功能就绪。
+DoIP 的诊断通信只能在 ECU 上电且激活状态下进行，否则 ECU 处于休眠，不会响应 TCP 连接或诊断请求。在测试或维修时，Tester 也会通过检测电源状态（如 DoIP 实体状态响应中的 Power Mode）判断 ECU 是否已被激活。
 
 ## UDS
